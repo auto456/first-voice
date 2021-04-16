@@ -37,8 +37,12 @@
     </b-list-group>
 
     <b-table striped hover :items="items" :fields="fields">
-      <template #cell(title)="items">{{ items.item.attributes.title }}</template>
-      <template #cell(firstVoice)="items">{{ items.item.attributes.firstVoice }}</template>
+      <template #cell(title)="items">{{
+        items.item.attributes.title
+      }}</template>
+      <template #cell(firstVoice)="items">{{
+        items.item.attributes.firstVoice
+      }}</template>
       <template #cell(firstVoicePick)="data">
         <b-dropdown id="dropdown-singer" text="Erste Stimme wählen">
           <b-dropdown-item
@@ -50,10 +54,14 @@
         </b-dropdown>
       </template>
     </b-table>
+    <b-button variant="info" @click="exportPDF">Export to PDF</b-button>
   </div>
 </template>
 
 <script>
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
+
 export default {
   data() {
     return {
@@ -97,6 +105,24 @@ export default {
     addToFirstVoices(data, singer) {
       this.items[data.index].attributes.firstVoice = singer;
       console.log(this.items);
+    },
+    exportPDF() {
+      var songs = []
+      this.items.forEach(item => songs.push([item.attributes.title, item.attributes.firstVoice?item.attributes.firstVoice:""]))
+  
+      const doc = new jsPDF();
+
+      doc.text("Sänger: ", 14, 10);
+      doc.setFontSize(14);
+      doc.text(this.singers, 14, 18);
+
+      doc.autoTable({
+        head: [["Titel", "Erste Stimme"]],
+        margin: { top: this.singers.length*10+15},
+        body: songs,
+      });
+      //console.log(doc.output());
+      doc.save("a4.pdf");
     },
     async getSongs(planId) {
       const response = await fetch(
