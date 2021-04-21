@@ -54,7 +54,7 @@
         </b-dropdown>
       </template>
     </b-table>
-    <b-button variant="info" @click="exportPDF">Export to PDF</b-button>
+    <b-button variant="info" @click="exportPDF" ref="exportButton">{{exportButtonText}}</b-button>
   </div>
 </template>
 
@@ -67,6 +67,7 @@ export default {
     return {
       plans: [],
       dropDownText: "Gottesdienst wählen",
+      exportButtonText: "Export to PDF",
       planId: "",
       items: [],
       fields: [
@@ -158,7 +159,7 @@ export default {
       const uid = uploadData.data[0].id;
 
       //then using the returnd uid to attach the file to the selected plan
-      fetch(
+      const attachmentRes = fetch(
         "https://api.planningcenteronline.com/services/v2/service_types/227874/plans/" +
           this.planId +
           "/attachments",
@@ -178,6 +179,13 @@ export default {
           method: "POST",
         }
       );
+    const attachmentFeedback = await attachmentRes
+    console.log(attachmentFeedback.status)
+    if (attachmentFeedback.status >100 && attachmentFeedback.status <= 300) {
+        this.exportButtonText = "Erfolgreich!"
+    } else {
+      this.exportButtonText = "Fehler: "+ attachmentFeedback.status
+    }
     },
     async getSongs() {
       const response = await fetch(
