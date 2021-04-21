@@ -17,7 +17,7 @@
         ></b-form-input>
       </b-col>
       <b-col
-        ><b-button variant="success" @click="addNameToList">+</b-button>
+        ><b-button variant="success" @click="addNameToSingersList">+</b-button>
       </b-col>
     </b-row>
 
@@ -100,7 +100,7 @@ export default {
       this.planId = plan.id;
       this.getSongs();
     },
-    addNameToList() {
+    addNameToSingersList() {
       this.singers.push(this.singer);
       this.singer = "";
     },
@@ -128,15 +128,21 @@ export default {
         margin: { top: this.singers.length * 10 + 15 },
         body: songs,
       });
+
+      //creating the pdf as blob with jsPDF
       var pdf = doc.output("blob");
+      //setting application type for the blob (maybe unnecessary)
       var blob = new Blob([pdf], { type: "application/pdf" });
 
+      //creating formData since the pco-api wants to recieve the file as formData
       var formData = new FormData();
 
-      formData.append("file", blob, "blob.pdf");
-      console.log(formData);
-      doc.save("a4.pdf");
+      var planDate = this.plans.find((plan) => plan.id == this.planId).attributes.dates;
 
+      //filling the formdata with the blob and defining the name of the file
+      formData.append("file", blob, "Erste Stimme - " + planDate + ".pdf");
+
+      //first step is to upload the file as a unassigned attachment
       const uploadRes = await fetch(
         "https://upload.planningcenteronline.com/v2/files",
         {
@@ -151,27 +157,24 @@ export default {
       const uploadData = await uploadRes.json();
       const uid = uploadData.data[0].id;
 
+      //then using the returnd uid to attach the file to the selected plan
       fetch(
-        "https://services.planningcenteronline.com/files/upload?item_type=PlanBase&item_id=" +
-          this.planId,
+        "https://api.planningcenteronline.com/services/v2/service_types/227874/plans/" +
+          this.planId +
+          "/attachments",
         {
-          body: "file%5Bid%5D=" + uid,
           headers: {
-            Accept: "*/*",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Sec-Ch-Ua":
-              '"Google Chrome";v="89", "Chromium";v="89", ";Not A Brand";v="99"',
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
-            "Set-Cookie":
-              "_ga=GA1.2.542467271.1618602085; _gid=GA1.2.616928862.1618602085; filePins=%7B%7D; legacy_plans=0; planning_center_session=eyJhbGciOiJFUzI1NiJ9.eyJqdGkiOiJkYTY4MWQwNzQzZWNiYzIyNmNkNjY1YjlkNDk3ZGQ0ZCIsImlhdCI6MTYxODY1NjE4OSwiZXhwIjoxNjE5ODY1Nzg5LCJpc3MiOiIvcGNvL3Nlc3Npb24ifQ.sEYEtMOA-PU3BQ68dggeQVSDUAVCxmN6WZdIduxTSY4TP-O9trobcIjh9RsrlBAM-hO9Lb8p5gQApBBnc6GQtQ; _account_center_session=Ty9PNEhNcG1ndmhZR3pPclFsYUVtcTdibzk5a0l1Ykh3WElQOEgrbkw1VEhqQWFLUWtIaHNKUmpvTHNQMjA3eGgzWm1Kc1dXZ1hBZnY0Zm1TNnA2bjUraVF3ZnFwUWE2MUozQ0tFUEFTMERxcEhrWFdIbDIvcEhQRU1UQW9uSU9zdUpPdDlZdURoTFUwMkljUWNmeDh2S2phYm5BSnhISjBoQy90RkNQN0FGZ1NnSmgrOStCZDlKYmJsNXlIZ0lIUEVkanF3SVpwZjJHKzRVZjJFMnZrUVgvbkJ5SEJMWHYxdFhlUklTeHloK0RtYWVyRWtZdXZ4NXpXc1RqMm5rbkg2a0kyMElacjM0QUdjdEVRWkNEN05ZaFlTRHV1Uk02SVc2UmNHSGVMakVveWFFcGREekVRVDUrOFNzSVAxOWdWakVYa3NOMlVGT3plSFdkZTA0RlFOSXdYOFVhSlRZMlNlS2J4Vk1Sd0VVWWdZMjdIUDV1dHhxWlpMbUs5WUEwL01ZQlBQRU9LQ0dteUtXeGc1L0FlYysrWURvVnM3cnVWUGNUdG9KSWlpSlFnSmw1UHBVY2pqcHo0bThZMjQyUS0tMTlVZjhGWUIzQUVJL2FoSkJrSmFSUT09--bf63b393922bc4bab1dbcdb39889813432ff735f",
-            "X-Csrf-Token":
-              "Xow5D9fTtH53Wsr4n7VAEdMYOP1RSDn6tQKZ/Aq2BfvKNcH0V3KXvB/J/TNC8RaXQvwG44X4f/9wLEwUez7Xzg==",
-            "X-Pco-Live-Socket-Id": uid,
-            "X-Requested-With": "XMLHttpRequest",
+            Authorization:
+              "Basic MzRmMzY5OWNkMmFkZjc3YmFmOTNlMDJlZjUyYjU3YTYxYjI4MWIyNDcyZjRkZjQwM2E0NDE5ODI3NDM5ZmYyYjpmODBmYmVmNzA2Nzg2NjI4MDY3NTlhOTcyNTBhY2VjMTMxOTFhZGI5Y2Q5NzIxOGY1YjBmYTY0ZDUwYjBlOWVk",
           },
+          body: JSON.stringify({
+            type: "Attachment",
+            data: {
+              attributes: {
+                file_upload_identifier: uid,
+              },
+            },
+          }),
           method: "POST",
         }
       );
@@ -192,7 +195,6 @@ export default {
       this.items = items.data.filter(
         (item) => item.attributes.item_type == "song"
       );
-      console.log(this.items);
     },
   },
 };
