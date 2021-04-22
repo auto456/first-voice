@@ -3,57 +3,39 @@
     <b-row>
       <b-col>
         <b-dropdown id="dropdown-1" :text="dropDownText" class="m-md-2">
-          <b-dropdown-item
-            v-for="plan in plans"
-            :key="plan.id"
-            @click="onDropDownClick(plan)"
-            >{{ plan.attributes.dates }}</b-dropdown-item
-          >
-        </b-dropdown></b-col
-      ><b-col cols="9">
-        <b-form-input
-          v-model="singer"
-          placeholder="Namen eingeben"
-        ></b-form-input>
+          <b-dropdown-item v-for="plan in plans" :key="plan.id" @click="onDropDownClick(plan)">{{ plan.attributes.dates }}</b-dropdown-item>
+        </b-dropdown></b-col>
+        <b-col cols="9">
+        <b-form-input v-model="singer" placeholder="Namen eingeben"></b-form-input>
       </b-col>
-      <b-col
-        ><b-button variant="success" @click="addNameToSingersList">+</b-button>
+      <b-col>
+        <b-button variant="success" @click="addNameToSingersList">+</b-button>
       </b-col>
     </b-row>
 
     <b-list-group>
-      <b-list-group-item
-        variant="secondary"
-        v-for="singer in singers"
-        :key="singer"
-        >{{ singer }}
-        <b-badge
-          @click="singers.splice(singers.indexOf(singer), 1)"
-          variant="danger"
-          pill
-          >x</b-badge
-        ></b-list-group-item
-      >
+      <b-list-group-item variant="secondary" v-for="singer in singers" :key="singer">{{ singer }}<b-badge @click="singers.splice(singers.indexOf(singer), 1)" variant="danger" pill>x</b-badge>
+      </b-list-group-item>
     </b-list-group>
 
     <b-table ref="songTable" striped hover :items="items" :fields="fields">
-      <template #cell(title)="items">{{
-        items.item.attributes.title
-      }}</template>
-      <template #cell(firstVoice)="items">{{
-        items.item.attributes.firstVoice
-      }}</template>
-      <template #cell(firstVoicePick)="data">
-        <b-dropdown id="dropdown-singer" text="Erste Stimme wählen">
-          <b-dropdown-item
-            v-for="singer in singers"
-            :key="singer"
-            @click="addToFirstVoices(data, singer)"
-            >{{ singer }}
-          </b-dropdown-item>
+      <template #cell(title)="items">{{items.item.attributes.title}}</template>
+      <template #cell(solo)="items">
+        <b-dropdown id="dropdown-solo" style="float: right; margin-right: 20%" text="Solos wählen">
+          <b-dropdown-item v-for="singer in singers" :key="singer" @click="addToSolos(items, singer)">{{ singer }}</b-dropdown-item>
+        </b-dropdown>
+        {{items.item.attributes.solo ? items.item.attributes.solo.toString() : "" }}
+        <b-badge v-if="items.item.attributes.hasOwnProperty('solo')" @click=" delete items.item.attributes.solo; $refs.songTable.refresh(); " variant="danger" pill >x</b-badge>
+      </template>
+      <template #cell(firstVoicePick)="items">
+        {{ items.item.attributes.firstVoice }}
+        <b-badge v-if="!!items.item.attributes.firstVoice" @click="items.item.attributes.firstVoice = null; $refs.songTable.refresh();" variant="danger" pill>x</b-badge>
+        <b-dropdown id="dropdown-singer" style="float: right; margin-right: 20%" text="Erste Stimme wählen">
+          <b-dropdown-item v-for="singer in singers" :key="singer" @click="addToFirstVoices(items, singer)" >{{ singer }} </b-dropdown-item>
         </b-dropdown>
       </template>
     </b-table>
+    
     <b-button variant="info" @click="exportPDF" ref="exportButton">{{exportButtonText}}</b-button>
   </div>
 </template>
@@ -72,8 +54,8 @@ export default {
       items: [],
       fields: [
         { key: "title", label: "Titel" },
-        { key: "firstVoice", label: "Stimmen" },
         { key: "firstVoicePick", label: "Erste Stimme" },
+        { key: "solo", label: "Solos" },
       ],
       singer: "",
       singers: [],
@@ -109,12 +91,19 @@ export default {
       this.items[data.index].attributes.firstVoice = singer;
       this.$refs.songTable.refresh();
     },
+    addToSolos(data, singer) {
+      if (this.items[data.index].attributes.hasOwnProperty("solo")) {
+        this.items[data.index].attributes.solo.push(singer);
+      } else this.items[data.index].attributes.solo = [singer];
+      this.$refs.songTable.refresh();
+    },
     async exportPDF() {
       var songs = [];
       this.items.forEach((item) =>
         songs.push([
           item.attributes.title,
           item.attributes.firstVoice ? item.attributes.firstVoice : "",
+          item.attributes.solo ? item.attributes.solo.toString() : "",
         ])
       );
 
@@ -125,8 +114,8 @@ export default {
       doc.text(this.singers, 14, 18);
 
       doc.autoTable({
-        head: [["Titel", "Erste Stimme"]],
-        margin: { top: this.singers.length * 10 + 15 },
+        head: [["Titel", "Erste Stimme", "Solos"]],
+        margin: { top: this.singers.length * 8 + 15 },
         body: songs,
       });
 
@@ -138,7 +127,8 @@ export default {
       //creating formData since the pco-api wants to recieve the file as formData
       var formData = new FormData();
 
-      var planDate = this.plans.find((plan) => plan.id == this.planId).attributes.dates;
+      var planDate = this.plans.find((plan) => plan.id == this.planId)
+        .attributes.dates;
 
       //filling the formdata with the blob and defining the name of the file
       formData.append("file", blob, "Erste Stimme - " + planDate + ".pdf");
@@ -179,13 +169,13 @@ export default {
           method: "POST",
         }
       );
-    const attachmentFeedback = await attachmentRes
-    console.log(attachmentFeedback.status)
-    if (attachmentFeedback.status >100 && attachmentFeedback.status <= 300) {
-        this.exportButtonText = "Erfolgreich!"
-    } else {
-      this.exportButtonText = "Fehler: "+ attachmentFeedback.status
-    }
+      const attachmentFeedback = await attachmentRes;
+      console.log(attachmentFeedback.status);
+      if (attachmentFeedback.status > 100 && attachmentFeedback.status <= 300) {
+        this.exportButtonText = "Erfolgreich!";
+      } else {
+        this.exportButtonText = "Fehler: " + attachmentFeedback.status;
+      }
     },
     async getSongs() {
       const response = await fetch(
